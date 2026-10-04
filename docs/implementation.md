@@ -1,4 +1,4 @@
-# Tiny Toast implementation
+# Daily timer implementation history
 
 Approved brief: native SwiftUI/AppKit reusable stand-up timer; draggable translucent
 260 × 252 panel above normal browser windows. RAW below 80%, NAILED through 100%,
@@ -97,3 +97,112 @@ toaster artwork, optional deadline ding (off initially), local preferences only.
   counts beneath it. Reset clears the sum; pauses never contribute.
 - All 19 tests passed, including stop-at-deadline sound behavior, summed time
   across a paused turn, repeated Stop, and reset.
+
+## Minimal labels, fire, and mechanical sounds
+
+- Removed READY/SERVED and visible action text. During a turn, the outcome sits
+  centered above a centered row of icon buttons. Accessible labels remain.
+- Above 150% of the per-person budget, vector flames rise around the loaf.
+  Pausing and Reduce Motion freeze their flicker; the next person starts fresh.
+- Bundled original synthesized cues replace system sounds: a reception bell once
+  at overtime entry, and a metallic spring/latch on Finish or Stop. Both honor mute.
+- 21 tests pass, including the exact fire threshold and decoding both audio files.
+
+## Soft toy artwork and quieter bell
+
+- User selected soft 3D toy styling. Vector artwork now uses enamel reflections,
+  a metal slot and lever, shaded crust and crumb texture, glossy eyes, soft cheeks,
+  and an alarmed fire expression. Flames have warm glow and drifting embers.
+- Timer display and icon buttons have subtle inset/beveled finishes. Existing
+  silhouettes and drag geometry are preserved.
+- Reception bell samples are scaled to 30% of their previous amplitude (about
+  -10.5 dB). The spring sound stays unchanged. Peak fell from 22455 to 6737.
+- Rendered normal and flaming frames inspected; release app rebuilt and signed.
+
+## Painted animation-film character
+
+- Replaced the vector toaster and bread with an original transparent painted atlas
+  generated using the built-in image tool. Prompt and provenance: artwork.md.
+- Native composition keeps the bread behind the toaster front and in front of its
+  rear rim. A shallower resting position keeps the face visible during timing.
+- Reception bell reduced another 3.1 dB (now 21% of its initial signal amplitude).
+- Sprite resources are bundled into both SwiftPM builds and the standalone app.
+  Drag geometry tests sample actual sprite alpha rather than an old vector path.
+
+## Native macOS timer revision
+
+- Replaces the character and three overlapping panels with one native floating
+  panel, standard title-bar controls, a system material background, and native
+  Liquid Glass buttons on macOS 26+. Older systems use bordered buttons.
+- Removes character animation, outcome tally, and total-duration summary from
+  the live model. The final result is solely a count of people exceeding 105%.
+- Tint is neutral through 80%, yellow above 80% through 95%, orange above 95%
+  and below 105%, and red from 105%. Exactly 105% does not increment the count.
+- Uses NSSound named Glass and Pop; no audio files or character sprites are
+  required by the executable. Old source assets remain unbuilt in the checkout.
+- Keeps monotonic timing, immediate next-person flow, pause exclusion, persisted
+  settings, menu-bar access, and screen-boundary clamping. Uses a separate saved
+  position key because the old position described artwork geometry.
+- Replaces the character app icon with a timer symbol. System appearance and
+  accessibility settings are honored, with explicit labels and progress values.
+- Verification: all 15 tests passed (including 8 color-boundary cases and 4
+  budget sizes for strict exceeded counting). Release app built, ad-hoc signed,
+  and signature verified; bundle contains only executable, icon, and metadata.
+- Live native UI verified: setup, start, pause, resume, red overtime, summary
+  with one exceeded person, and return to setup. Read-only code review found no
+  actionable issues. Audible output, older-macOS fallback, VoiceOver navigation,
+  and alternate system accessibility/appearance settings remain manual checks.
+- Installed command-line tools still emit missing developer search-path linker
+  warnings; builds and tests succeed using the macOS 26.5 SDK.
+
+## MiniPlayer proportions and focus-aware controls
+
+- Compact 260 × 150-point window with a continuous material surface and subtle
+  full-window status tint. Timer and summary stay centered at fixed positions.
+- Title, close control, and circular icon buttons fade in only while the window
+  is key and the pointer is inside. Tab also reveals controls for keyboard use;
+  losing focus resets that keyboard override. Reduce Motion disables the fade.
+- First click on an unfocused panel focuses it without activating a timer action.
+  AppKit tracking areas handle enter/exit and pointer movement.
+- Disables NSHostingView's automatic window sizing and sets the final frame after
+  installing content. This removes the hidden title bar's extra 28-point height,
+  confirmed in the live 520 × 300 Retina screenshot. Removed the upward offset
+  from the timer group after user feedback about vertical centering.
+- Tests cover hover-plus-focus gating and keyboard override reset, alongside the
+  existing timer suite. Live hidden/revealed layouts inspected; concurrent user
+  interaction prevented a controlled end-to-end keyboard/focus test.
+
+## Input tracking and smooth status colors
+
+- Replaced custom NSHostingView tracking callbacks with SwiftUI onHover on the
+  fixed outer view. This removes the path where unrelated tracking-area events
+  could overwrite whole-panel hover state.
+- Mouse-down refreshes pointer position before leaving keyboard-navigation mode.
+  The AppKit regression test reproduced the stale-pointer failure before the fix.
+- Status tint transitions use a 0.8-second ease-in-out animation, scoped to the
+  background color. Reduce Motion keeps immediate changes.
+- All 19 tests pass, including the AppKit click regression and advancing after
+  red overtime with counting and the next deadline intact. Release bundle built
+  and signature verified; read-only review found no additional issues.
+- Live automation could not reliably focus the nonactivating panel. The exact
+  user-reported overtime click failure still needs confirmation in normal use;
+  do not treat the event-state tests as proof of that runtime symptom's cause.
+
+## Daily timer rename, README, and GitHub releases
+
+- Renamed the app, executable, Swift package modules, source/test paths, and icon
+  tooling to Daily timer / DailyTimer / TimerCore / TimerAssets. Kept the stable
+  bundle identifier to retain existing preferences.
+- Added four AppKit renders of the real SwiftUI views to the README, with a
+  repeatable opt-in renderer. Renders use a fixed backdrop; desktop glass
+  compositing remains system-dependent.
+- Added PR/main CI for Apple Silicon and Intel, workflow/script validation,
+  signed ZIP packaging with version metadata, and SHA-256 checksums.
+- Release publishing consumes the same workflow's tested archives and is gated
+  on a successful push to main. Draft-first upload and immutable published-asset
+  retries are covered by local release-script tests. Tokens are job-scoped.
+- Verified 19 runtime tests, the opt-in renderer, actionlint, release-script tests,
+  archive checksum, extracted app signature, metadata, and system-only linkage.
+  Intel builds and actual GitHub-hosted execution remain unverified locally.
+- Connected the checkout to awojasinski/daily-timer and retained its MIT license.
+  No commits, pushes, or GitHub Releases were created during preparation.
