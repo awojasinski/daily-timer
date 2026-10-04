@@ -1,67 +1,125 @@
-# Tiny Toast
+# Daily timer
 
-A tiny stand-up timer with strong opinions about long updates. Native macOS 14+
-app, built with SwiftUI and AppKit. No accounts, network calls, or dependencies.
+[![CI and release](https://github.com/awojasinski/daily-timer/actions/workflows/ci.yml/badge.svg)](https://github.com/awojasinski/daily-timer/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/awojasinski/daily-timer)](https://github.com/awojasinski/daily-timer/releases/latest)
 
-## Build and run
+A small macOS timer for daily stand-ups. Set a time per person, keep the timer
+beside your work, and move to the next speaker with one click. No accounts,
+network requests, participant lists, or third-party runtime dependencies.
 
-Requires Apple's Swift 6 command-line tools (`xcode-select --install`) or Xcode.
+| Set the budget | Keep it beside your work |
+| --- | --- |
+| <img src="docs/images/setup.png" width="300" alt="Daily timer setup with a one-minute budget and compact controls"> | <img src="docs/images/running.png" width="300" alt="Running timer with controls hidden"> |
+| **Overtime** | **Meeting complete** |
+| <img src="docs/images/overtime.png" width="300" alt="Red overtime timer with pause, next, and stop controls"> | <img src="docs/images/summary.png" width="300" alt="Meeting summary showing one person exceeded their time"> |
+
+*Renders of the actual SwiftUI views on a neutral backdrop. Live translucency
+and Liquid Glass adapt to your desktop and system appearance.*
+
+## Download
+
+Get the ZIP for your Mac from [GitHub Releases](https://github.com/awojasinski/daily-timer/releases).
+Unzip it and move **Daily timer.app** to Applications.
+
+- **Apple Silicon:** choose the `arm64` archive.
+- **Intel:** choose the `x86_64` archive.
+- **macOS 14 or later.** Liquid Glass controls require macOS 26; earlier systems use native bordered controls.
+
+Builds are ad-hoc signed, but not Developer ID signed or notarized. macOS may
+require approval for the first launch. Each release includes SHA-256 checksums;
+verify a downloaded ZIP beside its checksum file with:
 
 ```sh
+shasum -a 256 -c daily-timer-<version>-macos-<architecture>.zip.sha256
+```
+
+## During a meeting
+
+1. Click the timer to focus it. Hover to reveal the controls; Tab reveals them for keyboard navigation.
+2. Use **− / +** to set the budget in 15-second steps, then press **Play**.
+3. **Pause / Resume** handles interruptions. **Next** records the current person and starts the next immediately.
+4. **Stop** records the final person and shows how many exceeded their time.
+5. **New meeting** clears the result and returns to setup.
+
+The timer stays centered when its title and controls fade away. Drag the window
+background to move it. It floats above normal windows without covering
+full-screen apps. Closing it hides it; use the menu-bar timer icon to show it
+again, mute sounds, reset the meeting, or quit. Hiding does not pause timing.
+
+| Time used | Appearance |
+| --- | --- |
+| Through 80% | No status tint |
+| Above 80% through 95% | Yellow |
+| Above 95% and below 105% | Orange |
+| From 105% | Red |
+
+Colors fade over 0.8 seconds. The final count includes only completed turns
+**strictly above 105%**—exactly 105% is red but does not count as exceeded.
+Each turn represents one person; the app does not track identities.
+
+The macOS **Glass** sound plays once at the deadline, and **Pop** plays when
+finishing a person. Both honor the menu-bar Sound setting. Space starts,
+pauses, or resumes while the panel has keyboard focus; there are no global
+shortcuts. Budget, sound, and window position persist. Session results do not
+survive Quit. Pauses exclude elapsed time; system sleep does not.
+
+## Build locally
+
+Use Xcode 26.3 or later, or Swift 6 command-line tools with a complete macOS 26 SDK.
+
+```sh
+git clone https://github.com/awojasinski/daily-timer.git
+cd daily-timer
 bash scripts/test.sh
 bash scripts/package.sh
-open "dist/Tiny Toast.app"
+open "dist/Daily timer.app"
 ```
 
-The packaging script builds for your Mac's architecture and ad-hoc signs the app
-for local use. You may move it to Applications. This is not a notarized release
-for distribution to other Macs.
-
-`scripts/test.sh` runs `swift test`, adding the installed testing macro plugin
-path when present (needed by the Swift 6.4 command-line tools).
-
-If your command-line tools default to a macOS 27 SDK without `SwiftUIMacros`,
-select an installed complete SDK explicitly. On the development Mac:
+The package script builds for the current machine, generates the app icon,
+ad-hoc signs the app, and creates a ZIP plus checksum in `dist/`.
+For an explicitly selected SDK:
 
 ```sh
-bash scripts/test.sh --sdk /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk
-SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk bash scripts/package.sh
+bash scripts/test.sh --sdk /path/to/MacOSX26.sdk
+SDKROOT=/path/to/MacOSX26.sdk bash scripts/package.sh
 ```
 
-## At the daily
+Regenerate the README renders from the app views:
 
-1. Use the left/right arrows around the timer to adjust the budget by
-   15 seconds (minimum 15 seconds; default one minute). Set it once before starting the meeting.
-2. Press the **play** button to start. Work in Jira as usual; the timer floats above normal
-   windows without requiring browser integration.
-3. Pause/resume for interruptions. Press the **checkmark** to finish a speaker and
-   immediately start the next person with the same budget.
-4. On the last person, press **Stop** to record their toast and end the meeting.
-   The timer shows the combined speaking time (excluding pauses), with
-   RAW / NAILED / BURNT counts underneath. **New meeting** returns to time setup.
+```sh
+bash scripts/render-previews.sh
+```
 
-RAW means below 80% of the budget, NAILED means 80–100%, and BURNT means overtime.
-At zero, the bread automatically jumps high and lands with a springy bounce.
-It pops once per turn; the timer keeps running into overtime. Each finished turn contributes once to the
-session tally. **Reset Meeting** clears the tally and discards an unfinished turn.
+## CI and releases
 
-There is no surrounding card: only the toaster character is visible. Drag its
-bread or body to move it. Empty space around it passes clicks to the app underneath.
-The menu-bar timer icon offers the session tally, Show/Hide, sound,
-Reset Meeting, and Quit. Hiding does not pause the timer.
-Budget, sound, and position persist; session results do not survive Quit.
-Sleep counts toward elapsed time; pause explicitly to stop timing.
+[CI and release](.github/workflows/ci.yml) runs on pull requests and pushes to
+`main`. It checks workflow and release scripts, runs the Swift suite on Apple
+Silicon/macOS 26 and Intel/macOS 15 with Xcode 26.3, then packages each tested
+architecture. Both ZIPs remain available as workflow artifacts for 14 days.
 
-Sound is on initially: a ding at the deadline and a pop on Finish. Mute both from
-the menu bar. Reduce Motion replaces the jump with an immediate pop. The character
-is fully opaque against a transparent background. It does not overlay
-macOS full-screen apps. There are no global keyboard shortcuts to conflict with Jira.
+A successful **push to `main`** automatically publishes a GitHub Release using
+those same archives. Pull requests and manually dispatched runs never publish.
+Publishing uses the built-in `GITHUB_TOKEN`; no Artifactory account or extra
+release token is needed.
 
-## Code
+`VERSION` holds the release series, currently `1.0`. The workflow run number
+becomes the patch version: run 42 produces `1.0.42` and tag `v1.0.42`. Local
+builds default to `1.0.0`. Set `BUILD_NUMBER` to reproduce a release's version.
+See [release maintenance](docs/releases.md) for setup, retries, and checks.
 
-- `Sources/ToastCore`: deterministic timer state, scoring, and deadline events.
-- `Sources/TinyToast`: SwiftUI artwork/UI, observable app state, native panel lifecycle.
-- `Tests/ToastCoreTests`: tests use explicit monotonic timestamps, without sleeps.
+## Project layout
 
-The visual design uses original SwiftUI vector artwork. The stand-up toast metaphor
-was inspired by [Daily Toast](https://dailytoast.io/); this is an independent app.
+- `Sources/TimerCore`: deterministic timing, thresholds, and exceeded count.
+- `Sources/DailyTimer`: SwiftUI views, AppKit panel, system sound, and preferences.
+- `Tools/TimerAssets`: app icon generation.
+- `Tests`: timer, sound dispatch, input-state regressions, and opt-in README renders.
+- `scripts`: repeatable tests, packaging, rendering, and release publishing.
+
+The bundle identifier remains stable across the rename to preserve preferences.
+Earlier character artwork is retained as historical source material and is not
+built into the app. The original stand-up timer idea was inspired by
+[Daily Toast](https://dailytoast.io/); this is an independent app.
+
+## License
+
+[MIT](LICENSE).

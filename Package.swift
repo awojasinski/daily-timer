@@ -2,19 +2,18 @@
 import PackageDescription
 
 let package = Package(
-    name: "TinyToast",
+    name: "DailyTimer",
     platforms: [.macOS(.v14)],
     products: [
-        .library(name: "ToastCore", targets: ["ToastCore"]),
-        .executable(name: "TinyToast", targets: ["TinyToast"]),
-        .executable(name: "ToastAssets", targets: ["ToastAssets"])
+        .library(name: "TimerCore", targets: ["TimerCore"]),
+        .executable(name: "DailyTimer", targets: ["DailyTimer"]),
+        .executable(name: "TimerAssets", targets: ["TimerAssets"])
     ],
     targets: [
-        .target(name: "ToastCore"),
-        .target(name: "ToastArt", dependencies: ["ToastCore"]),
-        .executableTarget(name: "TinyToast", dependencies: ["ToastCore", "ToastArt"]),
-        .executableTarget(name: "ToastAssets", dependencies: ["ToastCore", "ToastArt"], path: "Tools/ToastAssets"),
-        .testTarget(name: "ToastCoreTests", dependencies: ["ToastCore", "ToastArt"]),
-        .testTarget(name: "TinyToastTests", dependencies: ["TinyToast", "ToastCore"])
+        .target(name: "TimerCore"),
+        .executableTarget(name: "DailyTimer", dependencies: ["TimerCore"], exclude: ["Sounds"]),
+        .executableTarget(name: "TimerAssets", path: "Tools/TimerAssets"),
+        .testTarget(name: "TimerCoreTests", dependencies: ["TimerCore"]),
+        .testTarget(name: "DailyTimerTests", dependencies: ["DailyTimer", "TimerCore"])
     ]
 )

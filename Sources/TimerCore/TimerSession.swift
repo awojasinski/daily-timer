@@ -1,9 +1,7 @@
 import Foundation
 
-public enum ToastOutcome: String, CaseIterable, Sendable {
-    case raw = "RAW"
-    case nailed = "NAILED"
-    case burnt = "BURNT"
+public enum TimerStatus: Sendable {
+    case neutral, yellow, orange, red
 }
 
 public enum TimerPhase: Sendable {
@@ -13,25 +11,27 @@ public enum TimerPhase: Sendable {
 public struct TimerReading: Sendable {
     public let elapsed: TimeInterval
     public let progress: Double
-    public let outcome: ToastOutcome
+    public var status: TimerStatus {
+        if progress <= 0.8 { return .neutral }
+        if progress <= 0.95 { return .yellow }
+        if progress < 1.05 { return .orange }
+        return .red
+    }
     public let text: String
-    public let ejectionElapsed: TimeInterval?
 }
 
-public struct ToastSession: Sendable {
+public struct TimerSession: Sendable {
     public static let defaultBudgetSeconds = 60
     public static let budgetRange = 15...3600
     public private(set) var budgetSeconds: Int
     public private(set) var phase: TimerPhase = .idle
-    public private(set) var tally: [ToastOutcome: Int] = [:]
-    public private(set) var totalSpeakingTime: TimeInterval = 0
+    public private(set) var exceededCount = 0
     private var accumulated: TimeInterval = 0
     private var startedAt: TimeInterval?
     private var turnBudget: Int
     private var deadlineConsumed = false
-    private var ejectedAt: TimeInterval?
 
-    public init(budgetSeconds: Int = ToastSession.defaultBudgetSeconds) {
+    public init(budgetSeconds: Int = TimerSession.defaultBudgetSeconds) {
         let budget = Self.budgetRange.contains(budgetSeconds) ? budgetSeconds : Self.defaultBudgetSeconds
         self.budgetSeconds = budget
         self.turnBudget = budget
@@ -42,7 +42,7 @@ public struct ToastSession: Sendable {
         guard phase == .idle,
               Self.budgetRange.contains(seconds) else { return false }
         budgetSeconds = seconds
-        if phase == .idle { turnBudget = seconds }
+        turnBudget = seconds
         return true
     }
 
@@ -52,7 +52,6 @@ public struct ToastSession: Sendable {
         startedAt = now
         turnBudget = budgetSeconds
         deadlineConsumed = false
-        ejectedAt = nil
         phase = .running
     }
 
@@ -70,27 +69,25 @@ public struct ToastSession: Sendable {
     }
 
     @discardableResult
-    public mutating func finish(at now: TimeInterval) -> ToastOutcome? {
-        guard let outcome = endMeeting(at: now) else { return nil }
+    public mutating func finish(at now: TimeInterval) -> Bool {
+        guard endMeeting(at: now) else { return false }
         phase = .idle
         start(at: now)
-        return outcome
+        return true
     }
 
     @discardableResult
-    public mutating func endMeeting(at now: TimeInterval) -> ToastOutcome? {
-        guard phase == .running || phase == .paused else { return nil }
-        let outcome = reading(at: now).outcome
+    public mutating func endMeeting(at now: TimeInterval) -> Bool {
+        guard phase == .running || phase == .paused else { return false }
         accumulated = elapsed(at: now)
-        totalSpeakingTime += accumulated
-        tally[outcome, default: 0] += 1
+        if accumulated > Double(turnBudget) * 1.05 { exceededCount += 1 }
         startedAt = nil
         phase = .summary
-        return outcome
+        return true
     }
 
     public mutating func resetMeeting() {
-        self = ToastSession(budgetSeconds: budgetSeconds)
+        self = TimerSession(budgetSeconds: budgetSeconds)
     }
 
     public func elapsed(at now: TimeInterval) -> TimeInterval {
@@ -100,19 +97,16 @@ public struct ToastSession: Sendable {
     public func reading(at now: TimeInterval) -> TimerReading {
         let elapsed = elapsed(at: now)
         let budget = Double(turnBudget)
-        let outcome: ToastOutcome = elapsed < budget * 0.8 ? .raw : elapsed <= budget ? .nailed : .burnt
-        let remaining = phase == .summary ? totalSpeakingTime : budget - elapsed
+        let remaining = budget - elapsed
         let seconds = Int(ceil(abs(remaining)))
         let text = String(format: "%@%02d:%02d", remaining < 0 ? "+" : "", seconds / 60, seconds % 60)
-        return TimerReading(elapsed: elapsed, progress: elapsed / budget, outcome: outcome, text: text,
-                            ejectionElapsed: ejectedAt.map { max(0, now - $0) })
+        return TimerReading(elapsed: elapsed, progress: elapsed / budget, text: text)
     }
 
     public mutating func consumeDeadline(at now: TimeInterval) -> Bool {
         guard phase == .running, !deadlineConsumed,
               elapsed(at: now) >= Double(turnBudget) else { return false }
         deadlineConsumed = true
-        ejectedAt = now
         return true
     }
 }

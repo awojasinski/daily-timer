@@ -19,21 +19,19 @@ public struct ToastArtwork: View, Animatable {
     public var outcome: ToastOutcome
     public var motion: Bool
     nonisolated private var lowering: Double
-    private var progress: Double
+    private var onFire: Bool
     private var ejectionElapsed: Double?
     private var headroom: CGFloat
-    private var showBadge: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    public init(outcome: ToastOutcome, lowered: Bool = false, motion: Bool = false, progress: Double? = nil,
-                ejectionElapsed: Double? = nil, headroom: CGFloat = 0, showBadge: Bool = true) {
+    public init(outcome: ToastOutcome, lowered: Bool = false, motion: Bool = false,
+                onFire: Bool = false, ejectionElapsed: Double? = nil, headroom: CGFloat = 0) {
         self.outcome = outcome
+        self.onFire = onFire
         self.lowering = lowered ? 1 : 0
         self.motion = motion
-        self.progress = progress ?? (outcome == .raw ? 0 : 0.9)
         self.ejectionElapsed = ejectionElapsed
         self.headroom = headroom
-        self.showBadge = showBadge
     }
 
     nonisolated public var animatableData: Double {
@@ -55,63 +53,72 @@ public struct ToastArtwork: View, Animatable {
     }
 
     private func draw(in context: inout GraphicsContext, time: Double) {
-        let ink = ToastPalette.ink
-        let breadY: CGFloat = 4 + (ejectionElapsed.map { reduceMotion ? 0 : ToastPop.offset(at: $0) } ?? 20 * lowering)
+        let breadY: CGFloat = 4 + (ejectionElapsed.map { reduceMotion ? 0 : ToastPop.offset(at: $0) } ?? ToastPop.loweredOffset * lowering)
         let shake: CGFloat = outcome == .burnt && motion && !reduceMotion ? sin(time * 8) * 1.2 : 0
+        context.drawLayer { shadow in
+            shadow.addFilter(.blur(radius: 3))
+            shadow.fill(Path(ellipseIn: CGRect(x: 43, y: 126, width: 133, height: 5)), with: .color(ToastPalette.ink.opacity(0.22)))
+        }
 
-        context.fill(Path(ellipseIn: CGRect(x: 35, y: 126, width: 152, height: 10)), with: .color(ink.opacity(0.12)))
-        if outcome == .burnt {
+        if onFire {
+            drawFire(in: &context, breadY: breadY, time: time)
+        } else if outcome == .burnt {
             for index in 0..<3 {
+                let x = CGFloat(83 + index * 25)
                 let drift = CGFloat(sin(time * 1.7 + Double(index) * 2)) * 5
                 var smoke = Path()
-                smoke.move(to: CGPoint(x: 84 + index * 24, y: 42))
-                smoke.addCurve(to: CGPoint(x: 80 + CGFloat(index * 24) + drift, y: 1),
-                               control1: CGPoint(x: 65 + CGFloat(index * 24) + drift, y: 27),
-                               control2: CGPoint(x: 106 + index * 24, y: 20))
-                context.stroke(smoke, with: .color(ink.opacity(0.25)), style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                smoke.move(to: CGPoint(x: x, y: breadY + 12))
+                smoke.addCurve(to: CGPoint(x: x + drift, y: breadY - 19),
+                               control1: CGPoint(x: x - 12 + drift, y: breadY + 1),
+                               control2: CGPoint(x: x + 14, y: breadY - 7))
+                context.stroke(smoke, with: .linearGradient(Gradient(colors: [ToastPalette.ink.opacity(0.2), .clear]),
+                                                            startPoint: CGPoint(x: x, y: breadY + 12), endPoint: CGPoint(x: x, y: breadY - 19)),
+                               style: StrokeStyle(lineWidth: 3, lineCap: .round))
             }
         }
-
-        let slot = Path(roundedRect: CGRect(x: 44, y: 48, width: 130, height: 23), cornerRadius: 11)
-        context.fill(slot, with: .color(ink))
-
-        let bread = ToastGeometry.bread(at: breadY, shake: shake)
-        let warmth = min(1, max(0, progress))
-        let breadColor = outcome == .burnt
-            ? Color(red: 0.35, green: 0.25, blue: 0.22)
-            : Color(red: 1 - 0.06 * warmth, green: 0.89 - 0.25 * warmth, blue: 0.62 - 0.34 * warmth)
-        context.fill(bread, with: .color(breadColor))
-        context.stroke(bread, with: .color(outcome == .burnt ? ink : Color(red: 0.66, green: 0.36, blue: 0.16)), style: StrokeStyle(lineWidth: 5, lineJoin: .round))
-
-        let faceColor: Color = outcome == .burnt ? ToastPalette.cream : ink
-        for eyeX: CGFloat in [94, 124] {
-            let eye = Path(ellipseIn: CGRect(x: eyeX + shake, y: breadY + 23, width: 5, height: 7))
-            context.fill(eye, with: .color(faceColor))
+        let toaster = Image(decorative: ToastSprites.frames[0], scale: 1)
+        let toasterRect = CGRect(x: 38, y: 48, width: 161, height: 81)
+        context.draw(toaster, in: toasterRect)
+        let breadIndex = outcome == .raw ? 1 : outcome == .nailed ? 2 : 3
+        context.draw(Image(decorative: ToastSprites.frames[breadIndex], scale: 1),
+                     in: CGRect(x: 60 + shake, y: breadY, width: 98, height: 64))
+        context.drawLayer { front in
+            front.clip(to: Path(CGRect(x: 38, y: 58, width: 161, height: 71)))
+            front.draw(toaster, in: toasterRect)
         }
-        var mouth = Path()
-        mouth.move(to: CGPoint(x: 104 + shake, y: breadY + 34))
-        mouth.addQuadCurve(to: CGPoint(x: 116 + shake, y: breadY + 34), control: CGPoint(x: 110 + shake, y: breadY + (outcome == .burnt ? 29 : 43)))
-        context.stroke(mouth, with: .color(faceColor), style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
-        if outcome != .burnt {
-            for cheekX: CGFloat in [83, 133] {
-                context.fill(Path(ellipseIn: CGRect(x: cheekX + shake, y: breadY + 33, width: 8, height: 4)), with: .color(ToastPalette.coral.opacity(0.4)))
-            }
-        }
-
-        for footX: CGFloat in [58, 150] {
-            context.fill(Path(roundedRect: CGRect(x: footX, y: 117, width: 16, height: 12), cornerRadius: 4), with: .color(ink))
-        }
-        let body = Path(roundedRect: ToastGeometry.body, cornerRadius: 19)
-        context.fill(body, with: .linearGradient(Gradient(colors: [Color(red: 1, green: 0.69, blue: 0.47), ToastPalette.coral]), startPoint: CGPoint(x: 90, y: 58), endPoint: CGPoint(x: 110, y: 122)))
-        context.stroke(body, with: .color(ink), lineWidth: 3)
-        context.fill(Path(roundedRect: CGRect(x: 48, y: 66, width: 116, height: 4), cornerRadius: 2), with: .color(.white.opacity(0.4)))
-        if showBadge {
-            let badge = Path(roundedRect: CGRect(x: 78, y: 83, width: 65, height: 21), cornerRadius: 7)
-            context.fill(badge, with: .color(ToastPalette.cream))
-            context.draw(Text("TINY TOAST").font(.system(size: 8, weight: .black, design: .rounded)).tracking(0.7).foregroundColor(ink), at: CGPoint(x: 110, y: 94))
-        }
-        context.fill(Path(ellipseIn: CGRect(x: 156, y: 97, width: 7, height: 7)), with: .color(lowering > 0.5 ? Color.yellow : ink.opacity(0.4)))
-        context.fill(Path(roundedRect: CGRect(x: 186, y: 65, width: 4, height: 40), cornerRadius: 2), with: .color(ink))
-        context.fill(Path(roundedRect: CGRect(x: 177, y: 70 + 23 * lowering, width: 22, height: 9), cornerRadius: 4), with: .color(ink))
     }
+
+    private func drawFire(in context: inout GraphicsContext, breadY: CGFloat, time: Double) {
+        context.drawLayer { glow in
+            glow.addFilter(.blur(radius: 9))
+            glow.fill(Path(ellipseIn: CGRect(x: 60, y: breadY - 20, width: 99, height: 58)), with: .color(.orange.opacity(0.32)))
+        }
+        let heights: [CGFloat] = [23, 39, 27, 44, 21]
+        for index in 0..<5 {
+            let x = CGFloat(70 + index * 19)
+            let phase = time * 6 + Double(index) * 1.9
+            let base = breadY + 29
+            let tip = max(-headroom + 5, breadY - heights[index] - sin(phase) * 4)
+            let lean = CGFloat(sin(phase * 0.7)) * 7
+            var flame = Path()
+            flame.move(to: CGPoint(x: x - 12, y: base))
+            flame.addCurve(to: CGPoint(x: x + lean + 3, y: tip),
+                           control1: CGPoint(x: x - 24, y: base - 20), control2: CGPoint(x: x + 14, y: tip + 20))
+            flame.addCurve(to: CGPoint(x: x + 12, y: base),
+                           control1: CGPoint(x: x - 4 + lean, y: tip + 24), control2: CGPoint(x: x + 30, y: base - 20))
+            flame.closeSubpath()
+            context.fill(flame, with: .linearGradient(Gradient(colors: [Color(red: 1, green: 0.31, blue: 0.16), Color(red: 1, green: 0.66, blue: 0.17), Color(red: 1, green: 0.87, blue: 0.43)]),
+                                                       startPoint: CGPoint(x: x, y: tip), endPoint: CGPoint(x: x, y: base)))
+            let core = flame.applying(CGAffineTransform(translationX: -x, y: -base)
+                .concatenating(CGAffineTransform(scaleX: 0.48, y: 0.7))
+                .concatenating(CGAffineTransform(translationX: x, y: base)))
+            context.fill(core, with: .linearGradient(Gradient(colors: [Color(red: 1, green: 0.86, blue: 0.45), ToastPalette.cream]),
+                                                      startPoint: CGPoint(x: x, y: tip + 15), endPoint: CGPoint(x: x, y: base)))
+            if index % 2 == 1 {
+                let sparkY = max(-headroom + 2, tip - 9 - CGFloat(sin(phase)) * 4)
+                context.fill(Path(ellipseIn: CGRect(x: x + lean, y: sparkY, width: 2.5, height: 4)), with: .color(.orange.opacity(0.65)))
+            }
+        }
+    }
+
 }
